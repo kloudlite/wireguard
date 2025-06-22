@@ -1,4 +1,4 @@
-name: release wireguard controller
+name: build and release wireguard controller
 
 on:
   workflow_dispatch:
