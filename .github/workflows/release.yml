@@ -1,0 +1,67 @@
+name: release wireguard controller
+
+on:
+  workflow_dispatch:
+
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+  packages: write
+
+jobs:
+  build-and-release:
+    strategy:
+      matrix:
+        arch:
+          - amd64
+          - arm64
+        include:
+          - arch: amd64
+            runner: ubuntu-latest
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+
+    runs-on: ${{ matrix.runner }}
+    name: Build and Release
+    outputs:
+      version: ${{ steps.meta.outputs.version }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - uses: nxtcoder17/actions/metadata@main
+        id: meta
+
+      - name: create nightly github release (if applicable)
+        shell: bash
+        if: ${{ steps.meta.outputs.is_nightly }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          version: ${{steps.meta.outputs.version}}
+        run: |+
+          echo "🔖 recreating release for nightly tag ${{ steps.meta.outputs.version }}"
+          gh release delete ${{steps.meta.outputs.version}} -y --cleanup-tag -R ${{ github.repository }} || echo "cleaned up ${{steps.meta.outputs.version}} tag"
+          gh release create "${{steps.meta.outputs.version}}" -R "${{ github.repository }}" --generate-notes --prerelease --draft=false
+
+      - uses: nxtcoder17/actions/setup-docker@main
+        with:
+          docker_registry: "ghcr.io"
+          docker_username: ${{ github.actor }}
+          docker_password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: docker build and push
+        env:
+          image: "ghcr.io/${{ github.repository }}/controller:${{ steps.meta.outputs.version }}"
+          buildx_cache: "ghcr.io/${{ github.repository }}/controller:__docker__buildx__cache__${{steps.meta.outputs.version}}"
+        run: |+
+          docker buildx build -t "$image" \
+            --cache-to type=registry,ref="$buildx_cache",mode=max,compression=zstd,compression-level=13,force-compression=true \
+            --cache-from type=registry,ref="$buildx_cache" \
+            --output=type=image,compression=zstd,force-compression=true,compression-level=13,push=true \
+          .

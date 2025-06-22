@@ -1,0 +1,12 @@
+env:
+  buildx_args: "--output=type=image,compression=zstd,force-compression=true,compression-level=12,push=true"
+  platforms: "linux/amd64,linux/arm64"
+
+tasks:
+  wireguard:
+    dir: ./wireguard
+    interactive: true
+    env:
+      IMAGE: ghcr.io/kloudlite/wireguard/images/wireguard:latest
+    cmd:
+      - docker buildx build --platform "$platforms" -t "$IMAGE" "$buildx_args" .

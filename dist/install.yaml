@@ -1,0 +1,537 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  labels:
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/name: wireguard
+    control-plane: controller-manager
+  name: kl-wireguard
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.17.2
+  name: servers.wireguard.kloudlite.github.com
+spec:
+  group: wireguard.kloudlite.github.com
+  names:
+    kind: Server
+    listKind: ServerList
+    plural: servers
+    singular: server
+  scope: Cluster
+  versions:
+  - additionalPrinterColumns:
+    - jsonPath: .status.lastReconcileTime
+      name: Seen
+      type: date
+    - jsonPath: .metadata.annotations.kloudlite\.io\/operator\.checks
+      name: Checks
+      type: string
+    - jsonPath: .metadata.annotations.kloudlite\.io\/operator\.resource\.ready
+      name: Ready
+      type: string
+    - jsonPath: .metadata.creationTimestamp
+      name: Age
+      type: date
+    name: v1
+    schema:
+      openAPIV3Schema:
+        description: Server is the Schema for the servers API.
+        properties:
+          apiVersion:
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+            type: string
+          kind:
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: ServerSpec defines the desired state of Server.
+            properties:
+              cidr:
+                default: 10.13.0.0/24
+                type: string
+              dns:
+                properties:
+                  localhosts:
+                    items:
+                      type: string
+                    type: array
+                type: object
+              endpoint:
+                type: string
+              expose:
+                properties:
+                  port:
+                    default: 31820
+                    type: integer
+                  serviceType:
+                    default: NodePort
+                    enum:
+                    - ClusterIP
+                    - NodePort
+                    - LoadBalancer
+                    type: string
+                type: object
+              ip:
+                default: 10.13.0.1
+                type: string
+              peers:
+                items:
+                  properties:
+                    allowedIPs:
+                      items:
+                        type: string
+                      type: array
+                    endpoint:
+                      type: string
+                    ip:
+                      type: string
+                    name:
+                      type: string
+                    privateKey:
+                      type: string
+                    publicKey:
+                      type: string
+                  required:
+                  - name
+                  type: object
+                type: array
+              privateKey:
+                type: string
+              publicKey:
+                type: string
+              targetNamespace:
+                type: string
+            type: object
+          status:
+            properties:
+              checkList:
+                items:
+                  properties:
+                    debug:
+                      type: boolean
+                    description:
+                      type: string
+                    hide:
+                      type: boolean
+                    name:
+                      type: string
+                    title:
+                      type: string
+                  required:
+                  - name
+                  - title
+                  type: object
+                type: array
+              checks:
+                additionalProperties:
+                  properties:
+                    debug:
+                      type: string
+                    error:
+                      type: string
+                    generation:
+                      format: int64
+                      type: integer
+                    info:
+                      type: string
+                    message:
+                      type: string
+                    startedAt:
+                      format: date-time
+                      type: string
+                    state:
+                      type: string
+                    status:
+                      type: boolean
+                  required:
+                  - status
+                  type: object
+                type: object
+              isReady:
+                type: boolean
+              lastReadyGeneration:
+                format: int64
+                type: integer
+              lastReconcileTime:
+                format: date-time
+                type: string
+              resources:
+                items:
+                  properties:
+                    apiVersion:
+                      description: |-
+                        APIVersion defines the versioned schema of this representation of an object.
+                        Servers should convert recognized schemas to the latest internal value, and
+                        may reject unrecognized values.
+                        More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+                      type: string
+                    kind:
+                      description: |-
+                        Kind is a string value representing the REST resource this object represents.
+                        Servers may infer this from the endpoint the client submits requests to.
+                        Cannot be updated.
+                        In CamelCase.
+                        More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+                      type: string
+                    name:
+                      type: string
+                    namespace:
+                      type: string
+                  required:
+                  - name
+                  - namespace
+                  type: object
+                type: array
+            type: object
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  labels:
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/name: wireguard
+  name: kl-wg-controller-manager
+  namespace: kl-wireguard
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  labels:
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/name: wireguard
+  name: kl-wg-leader-election-role
+  namespace: kl-wireguard
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - configmaps
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - update
+  - patch
+  - delete
+- apiGroups:
+  - coordination.k8s.io
+  resources:
+  - leases
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - update
+  - patch
+  - delete
+- apiGroups:
+  - ""
+  resources:
+  - events
+  verbs:
+  - create
+  - patch
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: kl-wg-manager-role
+rules:
+- resources:
+  - namespaces
+  - secrets
+  - services
+  verbs:
+  - create
+  - delete
+  - get
+  - patch
+  - update
+- apiGroups:
+  - apps/v1
+  resources:
+  - deployments
+  verbs:
+  - create
+  - delete
+  - get
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - wireguard.kloudlite.github.com
+  resources:
+  - servers
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - wireguard.kloudlite.github.com
+  resources:
+  - servers/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - wireguard.kloudlite.github.com
+  resources:
+  - servers/status
+  verbs:
+  - get
+  - patch
+  - update
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: kl-wg-metrics-auth-role
+rules:
+- apiGroups:
+  - authentication.k8s.io
+  resources:
+  - tokenreviews
+  verbs:
+  - create
+- apiGroups:
+  - authorization.k8s.io
+  resources:
+  - subjectaccessreviews
+  verbs:
+  - create
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: kl-wg-metrics-reader
+rules:
+- nonResourceURLs:
+  - /metrics
+  verbs:
+  - get
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/name: wireguard
+  name: kl-wg-server-admin-role
+rules:
+- apiGroups:
+  - wireguard.kloudlite.github.com
+  resources:
+  - servers
+  verbs:
+  - '*'
+- apiGroups:
+  - wireguard.kloudlite.github.com
+  resources:
+  - servers/status
+  verbs:
+  - get
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/name: wireguard
+  name: kl-wg-server-editor-role
+rules:
+- apiGroups:
+  - wireguard.kloudlite.github.com
+  resources:
+  - servers
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - wireguard.kloudlite.github.com
+  resources:
+  - servers/status
+  verbs:
+  - get
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/name: wireguard
+  name: kl-wg-server-viewer-role
+rules:
+- apiGroups:
+  - wireguard.kloudlite.github.com
+  resources:
+  - servers
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - wireguard.kloudlite.github.com
+  resources:
+  - servers/status
+  verbs:
+  - get
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  labels:
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/name: wireguard
+  name: kl-wg-leader-election-rolebinding
+  namespace: kl-wireguard
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: kl-wg-leader-election-role
+subjects:
+- kind: ServiceAccount
+  name: kl-wg-controller-manager
+  namespace: kl-wireguard
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  labels:
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/name: wireguard
+  name: kl-wg-manager-rolebinding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: kl-wg-manager-role
+subjects:
+- kind: ServiceAccount
+  name: kl-wg-controller-manager
+  namespace: kl-wireguard
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: kl-wg-metrics-auth-rolebinding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: kl-wg-metrics-auth-role
+subjects:
+- kind: ServiceAccount
+  name: kl-wg-controller-manager
+  namespace: kl-wireguard
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/name: wireguard
+    control-plane: controller-manager
+  name: kl-wg-controller-manager-metrics-service
+  namespace: kl-wireguard
+spec:
+  ports:
+  - name: https
+    port: 8443
+    protocol: TCP
+    targetPort: 8443
+  selector:
+    app.kubernetes.io/name: wireguard
+    control-plane: controller-manager
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/name: wireguard
+    control-plane: controller-manager
+  name: kl-wg-controller-manager
+  namespace: kl-wireguard
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: wireguard
+      control-plane: controller-manager
+  template:
+    metadata:
+      annotations:
+        kubectl.kubernetes.io/default-container: manager
+      labels:
+        app.kubernetes.io/name: wireguard
+        control-plane: controller-manager
+    spec:
+      containers:
+      - args:
+        - --metrics-bind-address=:8443
+        - --leader-elect
+        - --health-probe-bind-address=:8081
+        command:
+        - /manager
+        image: controller:latest
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: 8081
+          initialDelaySeconds: 15
+          periodSeconds: 20
+        name: manager
+        ports: []
+        readinessProbe:
+          httpGet:
+            path: /readyz
+            port: 8081
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        resources:
+          limits:
+            cpu: 500m
+            memory: 128Mi
+          requests:
+            cpu: 10m
+            memory: 64Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+        volumeMounts: []
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      serviceAccountName: kl-wg-controller-manager
+      terminationGracePeriodSeconds: 10
+      volumes: []

@@ -1,0 +1,12 @@
+apiVersion: wireguard.kloudlite.github.com/v1
+kind: Server
+metadata:
+  name: wireguard
+spec:
+  dns:
+    localhosts:
+    - kloudlite.local
+  endpoint: localhost:31820
+  peers:
+    - name: nxtcoder17
+

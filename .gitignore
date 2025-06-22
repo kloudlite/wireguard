@@ -1,0 +1,6 @@
+.direnv
+go.work*
+bin/
+vendor/
+.idea
+.vscode
