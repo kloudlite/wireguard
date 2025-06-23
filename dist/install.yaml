@@ -227,6 +227,7 @@ rules:
 - apiGroups:
   - ""
   resources:
+  - events
   - namespaces
   - secrets
   - services
@@ -234,16 +235,19 @@ rules:
   - create
   - delete
   - get
+  - list
   - patch
   - update
+  - watch
 - apiGroups:
-  - apps/v1
+  - apps
   resources:
   - deployments
   verbs:
   - create
   - delete
   - get
+  - list
   - patch
   - update
   - watch
@@ -466,8 +470,6 @@ spec:
         - --metrics-bind-address=:8443
         - --leader-elect
         - --health-probe-bind-address=:8081
-        command:
-        - /manager
         image: ghcr.io/kloudlite/wireguard/controller:master-nightly
         livenessProbe:
           httpGet:

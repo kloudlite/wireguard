@@ -68,10 +68,11 @@ func (r *ServerReconciler) GetName() string {
 // +kubebuilder:rbac:groups=wireguard.kloudlite.github.com,resources=servers,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=wireguard.kloudlite.github.com,resources=servers/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=wireguard.kloudlite.github.com,resources=servers/finalizers,verbs=update
-// +kubebuilder:rbac:groups="",resources=namespaces,verbs=get;create;update;patch;delete
-// +kubebuilder:rbac:groups=apps/v1,resources=deployments,verbs=get;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups="",resources=services,verbs=get;create;update;patch;delete
-// +kubebuilder:rbac:groups="",resources=secrets,verbs=get;create;update;patch;delete
+// +kubebuilder:rbac:groups="",resources=namespaces,verbs=list;watch;get;create;update;patch;delete
+// +kubebuilder:rbac:groups=apps,resources=deployments,verbs=list;watch;get;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups="",resources=services,verbs=list;watch;get;create;update;patch;delete
+// +kubebuilder:rbac:groups="",resources=secrets,verbs=list;watch;get;create;update;patch;delete
+// +kubebuilder:rbac:groups="",resources=events,verbs=list;watch;get;create;update;patch;delete
 
 // For more details, check Reconcile and its Result here:
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.20.2/pkg/reconcile
