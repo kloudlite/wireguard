@@ -8,5 +8,5 @@ spec:
     - kloudlite.local
   endpoint: localhost:31820
   peers:
-    - name: nxtcoder17
+    - name: peer1
 
