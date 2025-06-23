@@ -7,15 +7,23 @@ RUN --mount=type=bind,source=flake.nix,target=flake.nix \
 nix develop --verbose --command echo "nix setup complete"
 EOF
 
+ARG GOMODCACHE=/cache/gomodcache
+ARG GOCACHE=/cache/gocache
 ENV CGO_ENABLED=0
+
 RUN --mount=type=bind,source=flake.nix,target=flake.nix \
   --mount=type=bind,source=flake.lock,target=flake.lock \
   --mount=type=bind,source=go.mod,target=go.mod \
   --mount=type=bind,source=go.sum,target=go.sum \
-  --mount=type=bind,target=/app,rw \
+  --mount=type=bind,source=.,target=/app \
+  --mount=type=cache,target=$GOMODCACHE \
+  --mount=type=cache,target=$GOCACHE \
   <<EOF
-nix develop --command \
-  go build -ldflags='-s -w' -o /out/wireguard-controller ./cmd/
+time nix develop --command go mod download -x
+echo "DOWNLOADED go modules"
+
+nix develop --command go build -ldflags='-s -w' -o /out/wireguard-controller ./cmd/
+echo "BUILT binary"
 EOF
 
 FROM gcr.io/distroless/static:nonroot
