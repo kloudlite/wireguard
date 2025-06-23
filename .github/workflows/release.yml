@@ -57,7 +57,7 @@ jobs:
 
       - name: docker build and push
         env:
-          image: "ghcr.io/${{ github.repository }}/controller:${{ steps.meta.outputs.version }}"
+          image: "ghcr.io/${{ github.repository }}/controller:${{ steps.meta.outputs.version }}-${{ matrix.arch }}"
           buildx_cache: "ghcr.io/${{ github.repository }}/controller:__docker__buildx__cache__${{ matrix.arch }}__${{steps.meta.outputs.version}}"
         run: |+
           docker buildx build -t "$image" \
@@ -65,3 +65,27 @@ jobs:
             --cache-from type=registry,ref="$buildx_cache" \
             --output=type=image,compression=zstd,force-compression=true,compression-level=13,push=true \
           .
+
+  build-controller-image-manifest:
+    runs-on: ubuntu-latest
+    name: multiarch-container-image
+    needs:
+      - build-and-release
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - uses: nxtcoder17/actions/setup-docker@main
+        with:
+          docker_registry: "ghcr.io"
+          docker_username: ${{ github.actor }}
+          docker_password: ${{ github.token }}
+          qemu: false
+
+      - shell: bash
+        env:
+          IMAGE: "ghcr.io/${{ github.repository }}/controller"
+          tag: "${{ needs.build-and-release.outputs.version }}"
+        run: |+
+          docker buildx imagetools create -t $IMAGE:$tag $IMAGE:$tag-amd64 $IMAGE:$tag-arm64
+

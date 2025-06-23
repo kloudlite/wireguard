@@ -139,15 +139,12 @@ spec:
               checks:
                 additionalProperties:
                   properties:
-                    debug:
-                      type: string
-                    error:
+                    completedAt:
+                      format: date-time
                       type: string
                     generation:
                       format: int64
                       type: integer
-                    info:
-                      type: string
                     message:
                       type: string
                     startedAt:
@@ -155,10 +152,6 @@ spec:
                       type: string
                     state:
                       type: string
-                    status:
-                      type: boolean
-                  required:
-                  - status
                   type: object
                 type: object
               isReady:
@@ -169,33 +162,6 @@ spec:
               lastReconcileTime:
                 format: date-time
                 type: string
-              resources:
-                items:
-                  properties:
-                    apiVersion:
-                      description: |-
-                        APIVersion defines the versioned schema of this representation of an object.
-                        Servers should convert recognized schemas to the latest internal value, and
-                        may reject unrecognized values.
-                        More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
-                      type: string
-                    kind:
-                      description: |-
-                        Kind is a string value representing the REST resource this object represents.
-                        Servers may infer this from the endpoint the client submits requests to.
-                        Cannot be updated.
-                        In CamelCase.
-                        More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
-                      type: string
-                    name:
-                      type: string
-                    namespace:
-                      type: string
-                  required:
-                  - name
-                  - namespace
-                  type: object
-                type: array
             type: object
         type: object
     served: true
@@ -258,7 +224,9 @@ kind: ClusterRole
 metadata:
   name: kl-wg-manager-role
 rules:
-- resources:
+- apiGroups:
+  - ""
+  resources:
   - namespaces
   - secrets
   - services
@@ -500,7 +468,7 @@ spec:
         - --health-probe-bind-address=:8081
         command:
         - /manager
-        image: controller:latest
+        image: ghcr.io/kloudlite/wireguard/controller:master-nightly
         livenessProbe:
           httpGet:
             path: /healthz

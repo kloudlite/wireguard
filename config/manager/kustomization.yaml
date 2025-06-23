@@ -5,4 +5,4 @@ kind: Kustomization
 images:
 - name: controller
   newName: ghcr.io/kloudlite/wireguard/controller
-  newTag: v1.0.0
+  newTag: master-nightly
