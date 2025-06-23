@@ -6,7 +6,7 @@ godebug default=go1.23
 
 require (
 	github.com/codingconcepts/env v0.0.0-20240618133406-5b0845441187
-	github.com/kloudlite/operator/toolkit v0.0.0-20250325034511-ae52e57be215
+	github.com/kloudlite/kloudlite/operator/toolkit v0.0.0-20250623010416-9d0948c16c98
 	github.com/onsi/ginkgo/v2 v2.22.0
 	github.com/onsi/gomega v1.36.1
 	github.com/seancfoley/ipaddress-go v1.7.0
@@ -68,11 +68,16 @@ require (
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
 	github.com/modern-go/reflect2 v1.0.2 // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
+	github.com/nxtcoder17/go.pkgs v0.0.0-20250401173049-502a28e591dd // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/prometheus/client_golang v1.19.1 // indirect
 	github.com/prometheus/client_model v0.6.1 // indirect
 	github.com/prometheus/common v0.55.0 // indirect
 	github.com/prometheus/procfs v0.15.1 // indirect
+	github.com/rs/zerolog v1.33.0 // indirect
+	github.com/samber/lo v1.47.0 // indirect
+	github.com/samber/slog-common v0.18.1 // indirect
+	github.com/samber/slog-zerolog/v2 v2.7.3 // indirect
 	github.com/seancfoley/bintree v1.3.1 // indirect
 	github.com/shopspring/decimal v1.3.1 // indirect
 	github.com/spf13/cast v1.5.0 // indirect

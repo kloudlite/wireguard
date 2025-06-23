@@ -38,7 +38,7 @@ import (
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 
-	"github.com/kloudlite/operator/toolkit/kubectl"
+	"github.com/kloudlite/kloudlite/operator/toolkit/kubectl"
 	wireguardkloudlitegithubcomv1 "github.com/kloudlite/wireguard/api/v1"
 	"github.com/kloudlite/wireguard/internal/controller"
 	// +kubebuilder:scaffold:imports

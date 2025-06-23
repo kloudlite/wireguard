@@ -4,7 +4,7 @@ import (
 	"embed"
 	"path/filepath"
 
-	"github.com/kloudlite/operator/toolkit/templates"
+	"github.com/kloudlite/kloudlite/operator/toolkit/templates"
 )
 
 //go:embed *

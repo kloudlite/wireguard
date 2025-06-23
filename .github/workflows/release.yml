@@ -58,7 +58,7 @@ jobs:
       - name: docker build and push
         env:
           image: "ghcr.io/${{ github.repository }}/controller:${{ steps.meta.outputs.version }}"
-          buildx_cache: "ghcr.io/${{ github.repository }}/controller:__docker__buildx__cache__${{steps.meta.outputs.version}}"
+          buildx_cache: "ghcr.io/${{ github.repository }}/controller:__docker__buildx__cache__${{ matrix.arch }}__${{steps.meta.outputs.version}}"
         run: |+
           docker buildx build -t "$image" \
             --cache-to type=registry,ref="$buildx_cache",mode=max,compression=zstd,compression-level=13,force-compression=true \

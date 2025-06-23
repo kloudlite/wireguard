@@ -27,10 +27,10 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/yaml"
 
-	fn "github.com/kloudlite/operator/toolkit/functions"
-	"github.com/kloudlite/operator/toolkit/kubectl"
-	"github.com/kloudlite/operator/toolkit/reconciler"
-	rApi "github.com/kloudlite/operator/toolkit/reconciler"
+	fn "github.com/kloudlite/kloudlite/operator/toolkit/functions"
+	"github.com/kloudlite/kloudlite/operator/toolkit/kubectl"
+	"github.com/kloudlite/kloudlite/operator/toolkit/reconciler"
+	rApi "github.com/kloudlite/kloudlite/operator/toolkit/reconciler"
 	v1 "github.com/kloudlite/wireguard/api/v1"
 	"github.com/kloudlite/wireguard/internal/templates"
 	"github.com/seancfoley/ipaddress-go/ipaddr"
@@ -163,41 +163,35 @@ func pickFirstAvailableIP(cidr string, ipMap map[string]struct{}) (string, error
 	}
 }
 
-func (r *ServerReconciler) CreateNamespace(check *reconciler.CheckWrapperV2[*v1.Server], req *rApi.Request[*v1.Server]) reconciler.StepResult {
-	ctx, obj := req.Context(), req.Object
-
+func (r *ServerReconciler) CreateNamespace(check *reconciler.Check[*v1.Server], obj *v1.Server) reconciler.StepResult {
 	if obj.Spec.TargetNamespace == "" {
 		obj.Spec.TargetNamespace = "wg-" + obj.Name
-		if err := r.Update(ctx, obj); err != nil {
+		if err := r.Update(check.Context(), obj); err != nil {
 			return check.Failed(err)
 		}
-		return check.StillRunning(fmt.Errorf("waiting for .spec.targetNamespace to be set"))
+		return check.Abort()
 	}
 
 	ns := &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: obj.Spec.TargetNamespace}}
-	if _, err := controllerutil.CreateOrUpdate(ctx, r.Client, ns, func() error {
+	if _, err := controllerutil.CreateOrUpdate(check.Context(), r.Client, ns, func() error {
 		fn.MapSet(&ns.Annotations, "kloudlite.io/description", fmt.Sprintf("Managed By Wireguard Controller. It is created to store deployments and configurations related to wireguard server (%s)", obj.Name))
 		return nil
 	}); err != nil {
-		return check.Failed(err)
+		return check.Errored(err)
 	}
 
-	return check.Completed()
+	return check.Passed()
 }
 
-func (r *ServerReconciler) cleanupNamespace(check *reconciler.CheckWrapperV2[*v1.Server], req *rApi.Request[*v1.Server]) reconciler.StepResult {
-	ctx, obj := req.Context(), req.Object
-
-	if err := fn.DeleteAndWait(ctx, req.Logger, r.Client, &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: obj.Spec.TargetNamespace}}); err != nil {
-		return check.Failed(err)
+func (r *ServerReconciler) cleanupNamespace(check *reconciler.Check[*v1.Server], obj *v1.Server) reconciler.StepResult {
+	if err := fn.DeleteAndWait(check.Context(), r.Client, &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: obj.Spec.TargetNamespace}}); err != nil {
+		return check.Errored(err)
 	}
 
-	return check.Completed()
+	return check.Passed()
 }
 
-func (r *ServerReconciler) CreateWireguardServerKeys(check *reconciler.CheckWrapperV2[*v1.Server], req *rApi.Request[*v1.Server]) reconciler.StepResult {
-	ctx, obj := req.Context(), req.Object
-
+func (r *ServerReconciler) CreateWireguardServerKeys(check *reconciler.Check[*v1.Server], obj *v1.Server) reconciler.StepResult {
 	if obj.Spec.PrivateKey == nil || obj.Spec.PublicKey == nil {
 		privateKey, publicKey, err := generateWgKeys()
 		if err != nil {
@@ -206,17 +200,15 @@ func (r *ServerReconciler) CreateWireguardServerKeys(check *reconciler.CheckWrap
 		obj.Spec.PrivateKey = &privateKey
 		obj.Spec.PublicKey = &publicKey
 
-		if err := r.Update(ctx, obj); err != nil {
+		if err := r.Update(check.Context(), obj); err != nil {
 			return check.Failed(err)
 		}
 	}
 
-	return check.Completed()
+	return check.Passed()
 }
 
-func (r *ServerReconciler) createDeployment(check *reconciler.CheckWrapperV2[*v1.Server], req *rApi.Request[*v1.Server]) reconciler.StepResult {
-	ctx, obj := req.Context(), req.Object
-
+func (r *ServerReconciler) createDeployment(check *reconciler.Check[*v1.Server], obj *v1.Server) reconciler.StepResult {
 	wg0Config, err := templates.ParseBytes(r.templateServerConfig, templates.ParamsWgServerConf{
 		ServerIP:         *obj.Spec.IP,
 		ServerPrivateKey: *obj.Spec.PrivateKey,
@@ -227,7 +219,7 @@ func (r *ServerReconciler) createDeployment(check *reconciler.CheckWrapperV2[*v1
 		return check.Failed(err)
 	}
 
-	kubeDNSSvc, err := rApi.Get(ctx, r.Client, fn.NN("kube-system", "kube-dns"), &corev1.Service{})
+	kubeDNSSvc, err := rApi.Get(check.Context(), r.Client, fn.NN("kube-system", "kube-dns"), &corev1.Service{})
 	if err != nil {
 		return check.Failed(err)
 	}
@@ -244,19 +236,17 @@ func (r *ServerReconciler) createDeployment(check *reconciler.CheckWrapperV2[*v1
 
 	deployment := &appsv1.Deployment{ObjectMeta: metav1.ObjectMeta{Name: obj.Name, Namespace: obj.Spec.TargetNamespace}}
 
-	if _, err := controllerutil.CreateOrUpdate(ctx, r.Client, deployment, func() error {
+	if _, err := controllerutil.CreateOrUpdate(check.Context(), r.Client, deployment, func() error {
 		deployment.SetOwnerReferences([]metav1.OwnerReference{fn.AsOwner(obj, true)})
 		return yaml.Unmarshal(b, &deployment)
 	}); err != nil {
-		return check.Failed(err)
+		return check.Errored(err)
 	}
 
-	return check.Completed()
+	return check.Passed()
 }
 
-func (r *ServerReconciler) createService(check *reconciler.CheckWrapperV2[*v1.Server], req *rApi.Request[*v1.Server]) reconciler.StepResult {
-	ctx, obj := req.Context(), req.Object
-
+func (r *ServerReconciler) createService(check *reconciler.Check[*v1.Server], obj *v1.Server) reconciler.StepResult {
 	b, err := templates.ParseBytes(r.templateServerServiceSpec, templates.ParamsServerServiceSpec{
 		SelectorLabels: map[string]string{"app": obj.Name},
 		ServiceType:    obj.Spec.Expose.ServiceType,
@@ -267,40 +257,34 @@ func (r *ServerReconciler) createService(check *reconciler.CheckWrapperV2[*v1.Se
 	}
 
 	svc := &corev1.Service{ObjectMeta: metav1.ObjectMeta{Name: obj.Name, Namespace: obj.Spec.TargetNamespace}}
-	if _, err := controllerutil.CreateOrUpdate(ctx, r.Client, svc, func() error {
+	if _, err := controllerutil.CreateOrUpdate(check.Context(), r.Client, svc, func() error {
 		svc.SetOwnerReferences([]metav1.OwnerReference{fn.AsOwner(obj, true)})
 		return yaml.Unmarshal(b, &svc)
 	}); err != nil {
 		fmt.Printf("\nYAML:\n%s\n", b)
+		return check.Errored(err)
+	}
+
+	return check.Passed()
+}
+
+func (r *ServerReconciler) cleanupDeployment(check *reconciler.Check[*v1.Server], obj *v1.Server) reconciler.StepResult {
+	if err := fn.DeleteAndWait(check.Context(), r.Client, &appsv1.Deployment{ObjectMeta: metav1.ObjectMeta{Name: obj.Name, Namespace: obj.Spec.TargetNamespace}}); err != nil {
+		return check.Errored(err)
+	}
+
+	return check.Passed()
+}
+
+func (r *ServerReconciler) cleanupService(check *reconciler.Check[*v1.Server], obj *v1.Server) reconciler.StepResult {
+	if err := fn.DeleteAndWait(check.Context(), r.Client, &corev1.Service{ObjectMeta: metav1.ObjectMeta{Name: obj.Name, Namespace: obj.Spec.TargetNamespace}}); err != nil {
 		return check.Failed(err)
 	}
 
-	return check.Completed()
+	return check.Passed()
 }
 
-func (r *ServerReconciler) cleanupDeployment(check *reconciler.CheckWrapperV2[*v1.Server], req *rApi.Request[*v1.Server]) reconciler.StepResult {
-	ctx, obj := req.Context(), req.Object
-
-	if err := fn.DeleteAndWait(ctx, req.Logger, r.Client, &appsv1.Deployment{ObjectMeta: metav1.ObjectMeta{Name: obj.Name, Namespace: obj.Spec.TargetNamespace}}); err != nil {
-		return check.Failed(err)
-	}
-
-	return check.Completed()
-}
-
-func (r *ServerReconciler) cleanupService(check *reconciler.CheckWrapperV2[*v1.Server], req *rApi.Request[*v1.Server]) reconciler.StepResult {
-	ctx, obj := req.Context(), req.Object
-
-	if err := fn.DeleteAndWait(ctx, req.Logger, r.Client, &corev1.Service{ObjectMeta: metav1.ObjectMeta{Name: obj.Name, Namespace: obj.Spec.TargetNamespace}}); err != nil {
-		return check.Failed(err)
-	}
-
-	return check.Completed()
-}
-
-func (r *ServerReconciler) syncPeers(check *reconciler.CheckWrapperV2[*v1.Server], req *rApi.Request[*v1.Server]) reconciler.StepResult {
-	ctx, obj := req.Context(), req.Object
-
+func (r *ServerReconciler) syncPeers(check *reconciler.Check[*v1.Server], obj *v1.Server) reconciler.StepResult {
 	ipMap := map[string]struct{}{
 		*obj.Spec.IP: {},
 	}
@@ -318,10 +302,10 @@ func (r *ServerReconciler) syncPeers(check *reconciler.CheckWrapperV2[*v1.Server
 				return check.Failed(err)
 			}
 			obj.Spec.Peers[i].IP = &ip
-			if err := r.Update(ctx, obj); err != nil {
+			if err := r.Update(check.Context(), obj); err != nil {
 				return check.Failed(err)
 			}
-			return check.StillRunning(fmt.Errorf("waiting for .peers[%d].ip to be set", i))
+			return check.Abort()
 		}
 
 		if obj.Spec.Peers[i].PrivateKey == nil || obj.Spec.Peers[i].PublicKey == nil {
@@ -332,18 +316,18 @@ func (r *ServerReconciler) syncPeers(check *reconciler.CheckWrapperV2[*v1.Server
 
 			obj.Spec.Peers[i].PrivateKey = &privateKey
 			obj.Spec.Peers[i].PublicKey = &publicKey
-			if err := r.Update(ctx, obj); err != nil {
+			if err := r.Update(check.Context(), obj); err != nil {
 				return check.Failed(err)
 			}
-			return check.StillRunning(fmt.Errorf("waiting for .peers[%d].publicKey to be set", i))
+			return check.Abort()
 		}
 
 		if obj.Spec.Peers[i].AllowedIPs == nil {
 			obj.Spec.Peers[i].AllowedIPs = []string{*obj.Spec.CIDR, r.Env.PodCIDR, r.Env.SvcCIDR}
-			if err := r.Update(ctx, obj); err != nil {
+			if err := r.Update(check.Context(), obj); err != nil {
 				return check.Failed(err)
 			}
-			return check.StillRunning(fmt.Errorf("waiting for .peers[%d].allowedIPs to be set", i))
+			return check.Abort()
 		}
 	}
 
@@ -369,7 +353,7 @@ func (r *ServerReconciler) syncPeers(check *reconciler.CheckWrapperV2[*v1.Server
 		}
 
 		secret := &corev1.Secret{ObjectMeta: metav1.ObjectMeta{Name: "wg-" + obj.Name + "-" + peer.Name, Namespace: obj.Spec.TargetNamespace}}
-		if _, err := controllerutil.CreateOrUpdate(ctx, r.Client, secret, func() error {
+		if _, err := controllerutil.CreateOrUpdate(check.Context(), r.Client, secret, func() error {
 			secret.SetOwnerReferences([]metav1.OwnerReference{fn.AsOwner(obj, true)})
 			if secret.Data == nil {
 				secret.Data = make(map[string][]byte, 1)
@@ -381,20 +365,19 @@ func (r *ServerReconciler) syncPeers(check *reconciler.CheckWrapperV2[*v1.Server
 		}
 	}
 
-	return check.Completed()
+	return check.Passed()
 }
 
-func (r *ServerReconciler) cleanupPeers(check *reconciler.CheckWrapperV2[*v1.Server], req *rApi.Request[*v1.Server]) reconciler.StepResult {
-	ctx, obj := req.Context(), req.Object
+func (r *ServerReconciler) cleanupPeers(check *reconciler.Check[*v1.Server], obj *v1.Server) reconciler.StepResult {
 	for _, peer := range obj.Spec.Peers {
-		if err := r.Delete(ctx, &corev1.Secret{ObjectMeta: metav1.ObjectMeta{Name: "wg-" + obj.Name + "-" + peer.Name, Namespace: obj.Spec.TargetNamespace}}); err != nil {
+		if err := r.Delete(check.Context(), &corev1.Secret{ObjectMeta: metav1.ObjectMeta{Name: "wg-" + obj.Name + "-" + peer.Name, Namespace: obj.Spec.TargetNamespace}}); err != nil {
 			if !apiErrors.IsNotFound(err) {
 				return check.Failed(err)
 			}
 		}
 	}
 
-	return check.Completed()
+	return check.Passed()
 }
 
 // SetupWithManager sets up the controller with the Manager.

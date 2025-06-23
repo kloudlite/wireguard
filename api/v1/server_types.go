@@ -17,7 +17,7 @@ limitations under the License.
 package v1
 
 import (
-	rApi "github.com/kloudlite/operator/toolkit/reconciler"
+	rApi "github.com/kloudlite/kloudlite/operator/toolkit/reconciler"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
