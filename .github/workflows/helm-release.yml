@@ -1,20 +1,17 @@
-name: Release Charts
+name: Release Helm Chart
 
 on:
-  # Allows you to run this workflow manually from the Actions tab
   workflow_call:
     inputs:
       chart_version: 
         type: string
         description: "helm chart version that this release"
         required: true
-        default: "v1.0.5-nightly"
 
       chart_app_version: 
         type: string
         description: "helm chart appVersion for this release"
         required: true
-        default: "v1.0.5-nightly"
 
       overwrite_release_assets:
         type: string
@@ -30,38 +27,6 @@ on:
         type: string
         description: "Github Release over which tarballs would be uploaded"
         required: true
-
-  workflow_dispatch:
-    inputs:
-      chart_version: 
-        type: string
-        description: "helm chart version that this release"
-        required: true
-        default: "v0.0.0-master-nightly"
-
-      chart_app_version: 
-        type: string
-        description: "helm chart appVersion for this release"
-        required: true
-        default: "v0.0.0-master-nightly"
-
-      overwrite_release_assets:
-        type: string
-        description: "Should Overwrite Existing Release Assets"
-        default: "true"
-
-      charts:
-        type: string
-        description: "multiline string of all charts to package"
-        required: true
-        default: |+
-          ./helm-chart
-
-      github_release:
-        type: string
-        description: "Github Release over which tarballs would be uploaded"
-        required: true
-        default: "master-nightly"
 
 permissions:
   contents: write

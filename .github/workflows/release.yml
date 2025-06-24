@@ -1,4 +1,4 @@
-name: build and release wireguard controller
+name: Release
 
 on:
   workflow_dispatch:
@@ -53,6 +53,23 @@ jobs:
           echo "🔖 recreating release for nightly tag ${{ steps.meta.outputs.version }}"
           gh release delete ${{steps.meta.outputs.version}} -y --cleanup-tag -R ${{ github.repository }} || echo "cleaned up ${{steps.meta.outputs.version}} tag"
           gh release create "${{steps.meta.outputs.version}}" -R "${{ github.repository }}" --generate-notes --prerelease --draft=false
+
+      - name: upload kubernetes CRDs to github release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          version: ${{steps.meta.outputs.version}}
+        run: |+
+          for file in $(ls config/crd/bases/); do
+            cat $file >> crds.yml
+          done
+
+          opts=("-R" "${{github.repository}}")
+          if [ "${{ steps.meta.outputs.is_nightly }}" = "true" ]; then
+            opts+=("--clobber")
+          fi
+
+          gh release upload "${{ steps.meta.outputs.version }}" ${opts[@]} crds.yml
 
       - uses: nxtcoder17/actions/setup-docker@main
         with:
