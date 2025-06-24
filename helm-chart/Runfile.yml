@@ -1,0 +1,9 @@
+tasks:
+  sync:
+    dir: ../
+    interactive: true
+    cmd:
+      - |+
+        kubectl kustomize edit namespace="{{.Release.Namespace}}" ./config/default/
+        kubectl kustomize edit namePrefix="{{.Release.Name}}" ./config/default
+        kubectl kustomize config/default

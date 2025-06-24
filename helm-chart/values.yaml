@@ -1,0 +1,15 @@
+podLabels:
+  kloudlite.io/controller: "wireguard"
+
+image:
+  repository: "ghcr.io/kloudlite/wireguard/controller"
+  tag: "v1.0.0"
+  pullPolicy: "IfNotPresent"
+
+resources:
+  limits:
+    cpu: 100m
+    memory: 100Mi
+  requests:
+    cpu: 50m
+    memory: 50Mi

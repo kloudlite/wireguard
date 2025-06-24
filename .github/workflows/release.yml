@@ -11,6 +11,10 @@ permissions:
   contents: write
   packages: write
 
+  # helm-release workflow
+  pages: write
+  id-token: write
+
 jobs:
   build-and-release:
     strategy:
@@ -28,6 +32,7 @@ jobs:
     name: Build and Release
     outputs:
       version: ${{ steps.meta.outputs.version }}
+      is_nightly: ${{ steps.meta.outputs.is_nightly }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -89,3 +94,15 @@ jobs:
         run: |+
           docker buildx imagetools create -t $IMAGE:$tag $IMAGE:$tag-amd64 $IMAGE:$tag-arm64
 
+  helm-release:
+    uses: ./.github/workflows/helm-release.yml
+    secrets: inherit
+    needs:
+      - build-and-release
+    with:
+      chart_version: ${{ needs.build-and-release.outputs.version }}
+      chart_app_version: ${{ needs.build-and-release.outputs.version }}
+      overwrite_release_assets: ${{ needs.build-and-release.outputs.is_nightly }}
+      charts: |+
+        ./helm-chart
+      github_release: "${{ needs.build-and-release.outputs.version }}"
