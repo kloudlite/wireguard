@@ -18,16 +18,22 @@ package v1
 
 import (
 	rApi "github.com/kloudlite/kloudlite/operator/toolkit/reconciler"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 type Peer struct {
-	Name       string   `json:"name"`
+	Name       string   `json:"name,omitempty"`
 	IP         *string  `json:"ip,omitempty"`
 	PrivateKey *string  `json:"privateKey,omitempty"`
 	PublicKey  *string  `json:"publicKey,omitempty"`
 	AllowedIPs []string `json:"allowedIPs,omitempty"`
 	Endpoint   *string  `json:"endpoint,omitempty"`
+}
+
+type ProxyPort struct {
+	Peer               string `json:"peer"`
+	corev1.ServicePort `json:",inline"`
 }
 
 // ServerSpec defines the desired state of Server.
@@ -50,6 +56,8 @@ type ServerSpec struct {
 	DNS DNS `json:"dns,omitempty"`
 
 	Peers []Peer `json:"peers,omitempty"`
+
+	Proxy []ProxyPort `json:"proxy,omitempty"`
 }
 
 type Expose struct {

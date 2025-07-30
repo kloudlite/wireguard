@@ -8,6 +8,14 @@ PostUp = [ -x /usr/bin/resolvectl ] && resolvectl dns %i {{.DNS}} && resolvectl 
 PreDown = [ -x /usr/bin/resolvectl ] && resolvectl revert %i
 {{- end }}
 
+[Peer]
+# NAME: {{.ServerPeer.Name}}
+PublicKey = {{.ServerPeer.PublicKey}}
+AllowedIPs = {{.ServerPeer.AllowedIPs | join ", " }}
+{{- if .ServerPeer.Endpoint }}
+Endpoint = {{.ServerPeer.Endpoint}}
+{{- end }}
+
 {{- range $_, $peer := .Peers }}
 {{- if not (eq $peer.Name $.Name) }}
 [Peer]

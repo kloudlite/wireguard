@@ -50,6 +50,7 @@ spec:
               # drop:
               #   - all
 
+        {{- with .WgDNSTemplateParams }}
         - name: dns
           image: ghcr.io/nxtcoder17/simple-dns:master-nightly
           imagePullPolicy: Always
@@ -78,3 +79,43 @@ spec:
             limits:
               cpu: 40m
               memory: 40Mi
+        {{- end }}
+
+        {{- if .PortMappings }}
+        {{- with .WgProxyTemplateParams }}
+        - name: wg-proxy
+          image: ghcr.io/kloudlite/hub/socat:latest
+          command:
+            - sh
+            - -c
+            - |+
+              {{- range $_, $v := .PortMappings }}
+
+              {{- if eq $v.Protocol "TCP" }}
+              (socat -dd tcp4-listen:{{$v.Port}},fork,reuseaddr tcp4:{{$v.TargetHost}}:{{$v.TargetPort}} 2>&1 | grep -iE --line-buffered 'listening|exiting') &
+              pid="$pid $!"
+              {{- else if eq $v.Protocol "UDP" }}
+              (socat -dd UDP4-LISTEN:{{$v.Port}},fork,reuseaddr UDP4:{{$v.TargetHost}}:{{$v.TargetPort}} 2>&1 | grep -iE --line-buffered 'listening|exiting') &
+              pid="$pid $!"
+              {{- end }}
+
+              {{- end }}
+
+              trap "eval kill -9 $pid || exit 0" EXIT SIGINT SIGTERM
+              eval wait $pid
+          securityContext:
+            capabilities:
+              add:
+                - NET_BIND_SERVICE
+                - SETGID
+              drop:
+                - all
+          resources:
+            limits:
+              memory: "50Mi"
+              cpu: "50m"
+            requests:
+              memory: "50Mi"
+              cpu: "50m"
+        {{- end }}
+        {{- end }}

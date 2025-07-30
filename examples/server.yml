@@ -10,3 +10,5 @@ spec:
   peers:
     - name: peer1
 
+  proxy:
+    - peer: peer1

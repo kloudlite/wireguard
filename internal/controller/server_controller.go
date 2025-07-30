@@ -27,6 +27,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/yaml"
 
+	"github.com/codingconcepts/env"
 	fn "github.com/kloudlite/kloudlite/operator/toolkit/functions"
 	"github.com/kloudlite/kloudlite/operator/toolkit/kubectl"
 	"github.com/kloudlite/kloudlite/operator/toolkit/reconciler"
@@ -42,12 +43,17 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
+type envVars struct {
+	PodCIDR string `env:"POD_CIDR" default:"10.42.0.0/16"`
+	SvcCIDR string `env:"SVC_CIDR" default:"10.43.0.0/16"`
+}
+
 // ServerReconciler reconciles a Server object
 type ServerReconciler struct {
 	client.Client
 	Scheme *runtime.Scheme
 
-	*Env
+	env envVars
 
 	YAMLClient kubectl.YAMLClient
 
@@ -170,7 +176,7 @@ func (r *ServerReconciler) CreateNamespace(check *reconciler.Check[*v1.Server], 
 		if err := r.Update(check.Context(), obj); err != nil {
 			return check.Failed(err)
 		}
-		return check.Abort()
+		return check.Abort("waiting for .spec.targetNamespace to be updated")
 	}
 
 	ns := &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: obj.Spec.TargetNamespace}}
@@ -213,7 +219,7 @@ func (r *ServerReconciler) createDeployment(check *reconciler.Check[*v1.Server],
 	wg0Config, err := templates.ParseBytes(r.templateServerConfig, templates.ParamsWgServerConf{
 		ServerIP:         *obj.Spec.IP,
 		ServerPrivateKey: *obj.Spec.PrivateKey,
-		PodCIDR:          r.Env.PodCIDR,
+		PodCIDR:          r.env.PodCIDR,
 		Peers:            obj.Spec.Peers,
 	})
 	if err != nil {
@@ -225,11 +231,35 @@ func (r *ServerReconciler) createDeployment(check *reconciler.Check[*v1.Server],
 		return check.Failed(err)
 	}
 
+	proxyParams := templates.WgProxyTemplateParams{
+		PortMappings: make([]templates.PortMapping, 0, len(obj.Spec.Proxy)),
+	}
+
+	peersMap := make(map[string]string, len(obj.Spec.Peers))
+
+	for _, p := range obj.Spec.Peers {
+		if p.IP != nil {
+			peersMap[p.Name] = *p.IP
+		}
+	}
+
+	for _, p := range obj.Spec.Proxy {
+		proxyParams.PortMappings = append(proxyParams.PortMappings, templates.PortMapping{
+			Protocol:   p.Protocol,
+			Port:       p.Port,
+			TargetHost: peersMap[p.Peer],
+			TargetPort: p.TargetPort.IntVal,
+		})
+	}
+
 	b, err := templates.ParseBytes(r.templateServerDeploymentSpec, templates.ParamsServerDeploymentSpec{
-		PodLabels:     map[string]string{"app": obj.Name},
-		Wg0Conf:       string(wg0Config),
-		KubeDNSSvcIP:  kubeDNSSvc.Spec.ClusterIP,
-		DNSLocalhosts: obj.Spec.DNS.Localhosts,
+		PodLabels: map[string]string{"app": obj.Name},
+		Wg0Conf:   string(wg0Config),
+		WgDNSTemplateParams: templates.WgDNSTemplateParams{
+			KubeDNSSvcIP:  kubeDNSSvc.Spec.ClusterIP,
+			DNSLocalhosts: obj.Spec.DNS.Localhosts,
+		},
+		WgProxyTemplateParams: proxyParams,
 	})
 	if err != nil {
 		return check.Failed(err)
@@ -248,10 +278,11 @@ func (r *ServerReconciler) createDeployment(check *reconciler.Check[*v1.Server],
 }
 
 func (r *ServerReconciler) createService(check *reconciler.Check[*v1.Server], obj *v1.Server) reconciler.StepResult {
-	b, err := templates.ParseBytes(r.templateServerServiceSpec, templates.ParamsServerServiceSpec{
+	b, err := templates.ParseBytes(r.templateServerServiceSpec, templates.WgServiceSpecParams{
 		SelectorLabels: map[string]string{"app": obj.Name},
 		ServiceType:    obj.Spec.Expose.ServiceType,
 		Port:           obj.Spec.Expose.Port,
+		Proxy:          obj.Spec.Proxy,
 	})
 	if err != nil {
 		return check.Failed(err)
@@ -262,7 +293,7 @@ func (r *ServerReconciler) createService(check *reconciler.Check[*v1.Server], ob
 		svc.SetOwnerReferences([]metav1.OwnerReference{fn.AsOwner(obj, true)})
 		return yaml.Unmarshal(b, &svc)
 	}); err != nil {
-		fmt.Printf("\nYAML:\n%s\n", b)
+		fmt.Printf("\n[ERROR] YAML:\n%s\n", b)
 		return check.Errored(err)
 	}
 
@@ -296,20 +327,29 @@ func (r *ServerReconciler) syncPeers(check *reconciler.Check[*v1.Server], obj *v
 		}
 	}
 
+	for _, peer := range obj.Spec.Peers {
+		if peer.IP != nil {
+			ipMap[*peer.IP] = struct{}{}
+		}
+	}
+
 	for i := range obj.Spec.Peers {
+		hasUpdate := false
+
 		if obj.Spec.Peers[i].IP == nil {
+			hasUpdate = true
+
 			ip, err := pickFirstAvailableIP(*obj.Spec.CIDR, ipMap)
 			if err != nil {
 				return check.Failed(err)
 			}
+
 			obj.Spec.Peers[i].IP = &ip
-			if err := r.Update(check.Context(), obj); err != nil {
-				return check.Failed(err)
-			}
-			return check.Abort()
 		}
 
 		if obj.Spec.Peers[i].PrivateKey == nil || obj.Spec.Peers[i].PublicKey == nil {
+			hasUpdate = true
+
 			privateKey, publicKey, err := generateWgKeys()
 			if err != nil {
 				return check.Failed(err)
@@ -317,37 +357,37 @@ func (r *ServerReconciler) syncPeers(check *reconciler.Check[*v1.Server], obj *v
 
 			obj.Spec.Peers[i].PrivateKey = &privateKey
 			obj.Spec.Peers[i].PublicKey = &publicKey
-			if err := r.Update(check.Context(), obj); err != nil {
-				return check.Failed(err)
-			}
-			return check.Abort()
 		}
 
 		if obj.Spec.Peers[i].AllowedIPs == nil {
-			obj.Spec.Peers[i].AllowedIPs = []string{*obj.Spec.CIDR, r.Env.PodCIDR, r.Env.SvcCIDR}
+			hasUpdate = true
+			obj.Spec.Peers[i].AllowedIPs = []string{*obj.Spec.CIDR, r.env.PodCIDR, r.env.SvcCIDR}
+		}
+
+		if hasUpdate {
 			if err := r.Update(check.Context(), obj); err != nil {
 				return check.Failed(err)
 			}
-			return check.Abort()
+			return check.Abort(fmt.Sprintf("waiting for .spec.peers[%d] to be updated", i))
 		}
 	}
 
-	for i := range obj.Spec.Peers {
-		peer := obj.Spec.Peers[i]
+	for _, peer := range obj.Spec.Peers {
 		b, err := templates.ParseBytes(r.templatePeerConf, templates.ParamsWgPeerConf{
 			Name:          peer.Name,
 			IP:            *peer.IP,
 			PrivateKey:    *peer.PrivateKey,
 			DNS:           *obj.Spec.IP,
 			DNSLocalhosts: obj.Spec.DNS.Localhosts,
-			Peers: append(obj.Spec.Peers, v1.Peer{
+			Peers:         obj.Spec.Peers,
+			ServerPeer: v1.Peer{
 				Name:       "server-" + obj.Name,
 				IP:         obj.Spec.IP,
 				PrivateKey: obj.Spec.PrivateKey,
 				PublicKey:  obj.Spec.PublicKey,
 				AllowedIPs: peer.AllowedIPs,
 				Endpoint:   &obj.Spec.Endpoint,
-			}),
+			},
 		})
 		if err != nil {
 			return check.Failed(err)
@@ -364,6 +404,7 @@ func (r *ServerReconciler) syncPeers(check *reconciler.Check[*v1.Server], obj *v
 		}); err != nil {
 			return check.Failed(err)
 		}
+
 	}
 
 	return check.Passed()
@@ -383,19 +424,14 @@ func (r *ServerReconciler) cleanupPeers(check *reconciler.Check[*v1.Server], obj
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *ServerReconciler) SetupWithManager(mgr ctrl.Manager) error {
-	if r.Client == nil {
-		r.Client = mgr.GetClient()
-	}
-
-	if r.Scheme == nil {
-		r.Scheme = mgr.GetScheme()
-	}
+	r.Client = mgr.GetClient()
+	r.Scheme = mgr.GetScheme()
 
 	if r.YAMLClient == nil {
-		return fmt.Errorf("yamlclient must be set")
+		return fmt.Errorf("YAMLClient must be set")
 	}
 
-	if r.Env == nil {
+	if err := env.Set(&r.env); err != nil {
 		return fmt.Errorf("env must be set")
 	}
 

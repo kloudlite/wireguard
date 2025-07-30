@@ -216,29 +216,12 @@ func main() {
 
 	yamlClient := kubectl.NewYAMLClientOrDie(mgr.GetConfig(), kubectl.YAMLClientOpts{})
 
-	ev, err := controller.LoadEnv()
-	if err != nil {
-		panic(err)
-	}
-
 	if err = (&controller.ServerReconciler{
-		Client:     mgr.GetClient(),
-		Scheme:     mgr.GetScheme(),
-		Env:        ev,
 		YAMLClient: yamlClient,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "Server")
 		os.Exit(1)
 	}
-
-	// if err = (&controller.ClientReconciler{
-	// 	Client:     mgr.GetClient(),
-	// 	Scheme:     mgr.GetScheme(),
-	// 	YAMLClient: yamlClient,
-	// }).SetupWithManager(mgr); err != nil {
-	// 	setupLog.Error(err, "unable to create controller", "controller", "Client")
-	// 	os.Exit(1)
-	// }
 	// +kubebuilder:scaffold:builder
 
 	if metricsCertWatcher != nil {

@@ -14,3 +14,10 @@ spec:
       protocol: UDP
       port: 53
       targetPort: 53
+
+    {{- range $_, $v := .Proxy }}
+    - name: {{$v.Name | default (printf "wg-proxy-%d" $v.Port) }}
+      protocol: {{$v.Protocol}}
+      port: {{$v.Port}}
+      targetPort: {{$v.Port}}
+    {{- end }}
