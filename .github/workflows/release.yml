@@ -4,6 +4,9 @@ on:
   workflow_dispatch:
 
   push:
+    branches:
+      - master
+
     tags:
       - 'v*'
 
@@ -62,6 +65,7 @@ jobs:
 
   build-container-image:
     strategy:
+      fail-fast: true
       matrix:
         arch:
           - amd64
