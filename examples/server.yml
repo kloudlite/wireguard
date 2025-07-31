@@ -10,5 +10,9 @@ spec:
   peers:
     - name: peer1
 
+  # it means, request landing on port 3000, will be proxied to peer1:8000
   proxy:
-    - peer: peer1
+    - protocol: TCP
+      port: 3000
+      peer: peer1
+      targetPort: 8000
