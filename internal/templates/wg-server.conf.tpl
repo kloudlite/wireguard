@@ -19,6 +19,9 @@ PublicKey = {{ $peer.PublicKey }}
 AllowedIPs = {{ $peer.IP }}/32
 {{- if $peer.Endpoint }}
 Endpoint = {{$peer.Endpoint}}
+{{- if gt $.KeepAlive 0 }}
+PersistentKeepalive = {{$.KeepAlive}}
+{{- end }}
 {{- end }}
 {{- end}}
 

@@ -11,6 +11,7 @@ type ParamsWgServerConf struct {
 	PodCIDR          string
 	WithUDP2Raw      bool
 	Peers            []v1.Peer
+	KeepAlive        int32
 }
 
 type ParamsWgPeerConf struct {

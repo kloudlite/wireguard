@@ -381,6 +381,7 @@ func (r *ServerReconciler) syncPeers(check *reconciler.Check[*v1.Server], obj *v
 			DNS:           *obj.Spec.IP,
 			DNSLocalhosts: obj.Spec.DNS.Localhosts,
 			Peers:         obj.Spec.Peers,
+			KeepAlive:     obj.Spec.KeepAlive,
 			ServerPeer: v1.Peer{
 				Name:       "server-" + obj.Name,
 				IP:         obj.Spec.IP,
