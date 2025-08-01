@@ -25,5 +25,8 @@ AllowedIPs = {{$peer.AllowedIPs | join ", " }}
 {{- if $peer.Endpoint }}
 Endpoint = {{$peer.Endpoint}}
 {{- end }}
+{{- if gt $.KeepAlive 0 }}
+PersistentKeepalive = {{$.KeepAlive}}
+{{- end }}
 {{- end }}
 {{ end }}
