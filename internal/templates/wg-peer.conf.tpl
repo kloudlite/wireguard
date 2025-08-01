@@ -14,6 +14,9 @@ PublicKey = {{.ServerPeer.PublicKey}}
 AllowedIPs = {{.ServerPeer.AllowedIPs | join ", " }}
 {{- if .ServerPeer.Endpoint }}
 Endpoint = {{.ServerPeer.Endpoint}}
+{{- if gt $.KeepAlive 0 }}
+PersistentKeepalive = {{$.KeepAlive}}
+{{- end }}
 {{- end }}
 
 {{- range $_, $peer := .Peers }}
@@ -24,9 +27,9 @@ PublicKey = {{$peer.PublicKey}}
 AllowedIPs = {{$peer.AllowedIPs | join ", " }}
 {{- if $peer.Endpoint }}
 Endpoint = {{$peer.Endpoint}}
-{{- end }}
 {{- if gt $.KeepAlive 0 }}
 PersistentKeepalive = {{$.KeepAlive}}
+{{- end }}
 {{- end }}
 {{- end }}
 {{ end }}
