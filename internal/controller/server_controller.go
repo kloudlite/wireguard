@@ -221,6 +221,7 @@ func (r *ServerReconciler) createDeployment(check *reconciler.Check[*v1.Server],
 		ServerPrivateKey: *obj.Spec.PrivateKey,
 		PodCIDR:          r.env.PodCIDR,
 		Peers:            obj.Spec.Peers,
+		KeepAlive:        obj.Spec.KeepAlive,
 	})
 	if err != nil {
 		return check.Failed(err)

@@ -51,6 +51,9 @@ type ServerSpec struct {
 
 	Endpoint string `json:"endpoint,omitempty"`
 
+	// KeepAlive duration in seconds, defaults to 0 (disabled)
+	KeepAlive int32 `json:"keepAlive,omitempty"`
+
 	Expose Expose `json:"expose,omitempty"`
 
 	DNS DNS `json:"dns,omitempty"`

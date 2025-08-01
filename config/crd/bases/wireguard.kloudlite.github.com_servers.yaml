@@ -80,6 +80,10 @@ spec:
               ip:
                 default: 10.13.0.1
                 type: string
+              keepAlive:
+                description: KeepAlive duration in seconds, defaults to 0 (disabled)
+                format: int32
+                type: integer
               peers:
                 items:
                   properties:
