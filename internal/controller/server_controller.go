@@ -46,6 +46,9 @@ import (
 type envVars struct {
 	PodCIDR string `env:"POD_CIDR" default:"10.42.0.0/16"`
 	SvcCIDR string `env:"SVC_CIDR" default:"10.43.0.0/16"`
+
+	WgServerImage        string `env:"WG_SERVER_IMAGE" default:"ghcr.io/kloudlite/wireguard/images/wireguard:latest"`
+	SimpleDNSServerImage string `env:"SIMPLE_DNS_SERVER_IMAGE" default:"ghcr.io/nxtcoder17/simple-dns:v1.0.0"`
 }
 
 // ServerReconciler reconciles a Server object
@@ -253,13 +256,15 @@ func (r *ServerReconciler) createDeployment(check *reconciler.Check[*v1.Server],
 		})
 	}
 
-	b, err := templates.ParseBytes(r.templateServerDeploymentSpec, templates.ParamsServerDeploymentSpec{
+	b, err := templates.ParseBytes(r.templateServerDeploymentSpec, templates.ServerDeploymentSpecParams{
 		PodLabels: map[string]string{"app": obj.Name},
 		Wg0Conf:   string(wg0Config),
 		WgDNSTemplateParams: templates.WgDNSTemplateParams{
-			KubeDNSSvcIP:  kubeDNSSvc.Spec.ClusterIP,
-			DNSLocalhosts: obj.Spec.DNS.Localhosts,
+			SimpleDNSServerImage: r.env.SimpleDNSServerImage,
+			KubeDNSSvcIP:         kubeDNSSvc.Spec.ClusterIP,
+			DNSLocalhosts:        obj.Spec.DNS.Localhosts,
 		},
+		WgServerImage:         r.env.WgServerImage,
 		WgProxyTemplateParams: proxyParams,
 	})
 	if err != nil {

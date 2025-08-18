@@ -61,8 +61,15 @@ spec:
       - args:
           - --leader-elect
           - --health-probe-bind-address=:8081
-        image: controller:latest
+        image: controller-image
         name: manager
+        env:
+          - name: WG_SERVER_IMAGE
+            value: "ghcr.io/kloudlite/wireguard/images/wireguard:latest"
+
+          - name: SIMPLE_DNS_SERVER_IMAGE
+            value: "ghcr.io/nxtcoder17/simple-dns:v1.0.0"
+
         ports: []
         securityContext:
           allowPrivilegeEscalation: false

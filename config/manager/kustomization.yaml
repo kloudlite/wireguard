@@ -3,6 +3,16 @@ resources:
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 images:
-- name: controller
+- name: controller-image
   newName: ghcr.io/kloudlite/wireguard/controller
   newTag: master-nightly
+
+replacements:
+  - source:
+      value: "SAMPLE"
+    targets:
+      - select:
+          name: controller-manager
+          kind: Deployment
+        fieldPaths:
+        - spec.template.spec.containers.[name=manager].env.[name=WG_SERVER_IMAGE].value
