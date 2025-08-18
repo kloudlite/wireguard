@@ -27,9 +27,11 @@ type ParamsWgPeerConf struct {
 	KeepAlive  int32
 }
 
-type ParamsServerDeploymentSpec struct {
+type ServerDeploymentSpecParams struct {
 	PodLabels map[string]string
 	Wg0Conf   string
+
+	WgServerImage string
 
 	WgDNSTemplateParams
 
@@ -47,6 +49,8 @@ type WgServiceSpecParams struct {
 type WgDNSTemplateParams struct {
 	KubeDNSSvcIP  string
 	DNSLocalhosts []string
+
+	SimpleDNSServerImage string
 }
 
 type PortMapping struct {

@@ -21,10 +21,13 @@ permissions:
 jobs:
   github-release:
     name: Create Github Release
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux, x64]
     outputs:
       version: ${{ steps.meta.outputs.version }}
-      is_nightly: ${{ steps.meta.outputs.is_nightly }}
+      ref_slug: ${{ steps.meta.outputs.ref_slug }}
+      default_branch_slug: ${{ steps.meta.outputs.default_branch_slug }}
+
+      is_pre_release: ${{ steps.meta.outputs.is_pre_release }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -35,46 +38,37 @@ jobs:
       - uses: nxtcoder17/actions/metadata@main
         id: meta
 
-      - name: create nightly github release (if applicable)
-        shell: bash
-        if: ${{ steps.meta.outputs.is_nightly == 'true' }}
-        env:
-          GH_TOKEN: ${{ github.token }}
-          version: ${{steps.meta.outputs.version}}
-        run: |+
-          echo "🔖 recreating release for nightly tag ${{ steps.meta.outputs.version }}"
-          gh release delete ${{steps.meta.outputs.version}} -y --cleanup-tag -R ${{ github.repository }} || echo "cleaned up ${{steps.meta.outputs.version}} tag"
-          gh release create "${{steps.meta.outputs.version}}" -R "${{ github.repository }}" --generate-notes --prerelease
+      - name: create github release
+        uses: nxtcoder17/actions/github-release-create@main
+        with:
+          name: ${{steps.meta.outputs.version}}
+          github_token: ${{github.token}}
+          pre_release: ${{ steps.meta.outputs.is_pre_release }}
 
-      - name: upload kubernetes CRDs to github release
+      - name: create unified CRDs file
         shell: bash
-        env:
-          GH_TOKEN: ${{ github.token }}
-          version: ${{steps.meta.outputs.version}}
         run: |+
           for file in $(ls config/crd/bases/); do
             cat config/crd/bases/$file >> crds.yml
           done
 
-          opts=("-R" "${{github.repository}}")
-          if [ "${{ steps.meta.outputs.is_nightly }}" = "true" ]; then
-            opts+=("--clobber")
-          fi
+      - name: upload kubernetes CRDs to github release
+        uses: nxtcoder17/actions/github-release-upload@main
+        with:
+          name: ${{steps.meta.outputs.version}}
+          github_token: ${{github.token}}
+          files: |+
+            crds.yml
 
-          gh release upload "${{ steps.meta.outputs.version }}" ${opts[@]} crds.yml
-
-  build-container-image:
+  build-image:
     strategy:
       fail-fast: true
       matrix:
-        arch:
-          - amd64
-          - arm64
         include:
           - arch: amd64
-            runner: ubuntu-latest
+            runs-on: [self-hosted, linux, x64]
           - arch: arm64
-            runner: ubuntu-24.04-arm
+            runs-on: [self-hosted, linux, ARM64]
 
     runs-on: ${{ matrix.runner }}
     name: Build Container Image
@@ -96,24 +90,23 @@ jobs:
       - name: docker build and push
         env:
           image: "ghcr.io/${{ github.repository }}/controller:${{ needs.github-release.outputs.version }}-${{ matrix.arch }}"
-          buildx_cache: "ghcr.io/${{ github.repository }}/controller:__docker__buildx__cache__${{ matrix.arch }}__${{needs.github-release.outputs.version}}"
+          buildx_cache: "ghcr.io/${{ github.repository }}/controller:buildx-cache-${{needs.github-release.outputs.ref_slug}}-${{matrix.arch}}"
+          buildx_cache_default: "ghcr.io/${{ github.repository }}/controller:buildx-cache-${{needs.github-release.outputs.default_branch_slug}}-${{matrix.arch}}"
         run: |+
           docker buildx build -t "$image" \
             --cache-to type=registry,ref="$buildx_cache",mode=max,compression=zstd,compression-level=13,force-compression=true \
             --cache-from type=registry,ref="$buildx_cache" \
+            --cache-from type=registry,ref="$buildx_cache_default" \
             --output=type=image,compression=zstd,force-compression=true,compression-level=13,push=true \
           .
 
   publish-multiarch-image:
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux]
     name: publish-multiarch-image
     needs:
       - github-release
-      - build-container-image
+      - build-image
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
       - uses: nxtcoder17/actions/setup-docker@main
         with:
           docker_registry: "ghcr.io"
@@ -133,11 +126,11 @@ jobs:
     secrets: inherit
     needs:
       - github-release
-      - build-container-image
+      - build-image
     with:
       chart_version: ${{ needs.github-release.outputs.version }}
       chart_app_version: ${{ needs.github-release.outputs.version }}
-      overwrite_release_assets: ${{ needs.github-release.outputs.is_nightly }}
+      overwrite_release_assets: ${{ needs.github-release.outputs.is_pre_release }}
       charts: |+
         ./helm-chart
       github_release: "${{ needs.github-release.outputs.version }}"

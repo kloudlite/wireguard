@@ -13,7 +13,7 @@ spec:
 
       containers:
         - name: wireguard
-          image: ghcr.io/kloudlite/wireguard/images/wireguard:latest
+          image: {{.WgServerImage}}
           imagePullPolicy: Always
           command:
             - sh
@@ -52,7 +52,7 @@ spec:
 
         {{- with .WgDNSTemplateParams }}
         - name: dns
-          image: ghcr.io/nxtcoder17/simple-dns:master-nightly
+          image: {{.SimpleDNSServerImage}}
           imagePullPolicy: Always
           args:
             - --addr
